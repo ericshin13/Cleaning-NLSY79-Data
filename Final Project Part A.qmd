@@ -1,0 +1,91 @@
+---
+title: "Final Project | Part A"
+author: "Eric Shin"
+date: last-modified
+subtitle: "Week 7"
+format: 
+   html:
+     embed-resources: true
+---
+
+## Tidy the Data
+
+```{r loading packages, include = FALSE}
+library("dplyr")
+library("tidyr")
+library("ggplot2")
+library("readr")
+
+```
+
+```{r loading data, message = FALSE}
+project1_data <- read_csv("Project1Data.csv") #Loading Project 1 Data
+
+project1_data_headers <- read_csv("Project1DataHeaders.csv") #Loading Project 1 Data Headers
+
+```
+
+```{r tidying data, message = FALSE}
+names(project1_data_headers) <- c("Id", "Questions", "Quest_desc", "year")
+
+height_data_tidy <- pivot_longer(project1_data, starts_with("T"), names_to = "Id", values_to = "Measurement") %>%
+  inner_join(project1_data_headers, by = "Id") %>%
+  select(-"Questions") %>%
+  pivot_wider(names_from = "Quest_desc", values_from = "Measurement") %>%
+   rename("CASEID" = R0000100,
+         "sex" = R0536300,
+         "Height_feet" = 'R HEIGHT IN FEET',
+         "Height_inches" = 'R HEIGHT IN INCHES') %>%
+    group_by(CASEID, sex, year) %>%
+  summarise(
+    Height_feet = max(Height_feet, na.rm = TRUE),
+    Height_inches = max(Height_inches, na.rm = TRUE)) %>%
+  ungroup() #Tidying the data found in "Project1Data.csv", using the provided meta-data in "Project1DataHeaders.csv" to map columns to their respective years and values, storing the result of the data in a new tibble, "height_data_tidy"
+```
+
+## Clean the Data
+
+```{r cleaning data}
+summary(height_data_tidy$Height_feet)
+
+summary(height_data_tidy$Height_inches) #Inspecting the range and missing values in the height_feet and height_inches columns
+
+
+table(is.na(height_data_tidy$Height_feet))
+
+table(is.na(height_data_tidy$Height_inches)) #Checking for any non-NA missing value representations
+
+height_data_tidy_cleaned <- height_data_tidy %>%
+  mutate(Height_feet = ifelse(Height_feet >= 4 & Height_feet <= 7, Height_feet, NA),
+         Height_inches = ifelse(Height_inches >= 0 & Height_inches <= 11, Height_inches, NA)) %>%
+  mutate(height = ifelse(!is.na(Height_feet) & !is.na(Height_inches),
+                         Height_feet * 12 + Height_inches, NA)) %>%
+  mutate(height = ifelse(height >= 48 & height <= 84, height, NA)) %>%
+  select(CASEID, sex, year, height)
+head(height_data_tidy_cleaned) #Cleaning heigh_feet and height_inches, combining feet and inches into a signle height in inches, handling outliers by restricting height to between 48 and 84 inches (4 to 7 feet), selecting the required columns, viewing cleaned data
+
+#Heights below 4 feet are generally unrealistic for adults, so these are treated as outliers
+
+#Heights above 7 feet, although rare, are treated as extreme outliers 
+
+#Any values that don't meet the expected ranges or that are missing are replaced by NA
+
+```
+
+## Visualizing the Data
+
+```{r visualizing distributions}
+ggplot(height_data_tidy_cleaned, aes(x = height, fill = sex)) +
+  geom_histogram(position = "dodge", bins = 30, alpha = 0.7) +
+  labs(title = "Height Distribution by Sex", 
+       x = "Height (Inches)", 
+       y = "Count") +
+  scale_fill_manual(values = c("yellow", "forestgreen")) #Using the ggplot function to create a histogram, visualizing the height distribution, comparing males and females
+
+#The histogram shows a distinct difference between the height distributions for males and females, the male distribution appears to be shifted to the right, indicating that males, on average, are taller than females
+
+#The peak of the male distribution (where the highest bar or density is located) is at a higher height range than the female distribution, suggesting that the typical male respondent is taller than the typical female respondent
+
+#The spread of the male height distribution seems to be wider, with heights ranging from roughly 60 inches (5'0") to above 75 inches (6'3")
+
+```
